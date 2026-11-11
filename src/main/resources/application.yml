@@ -1,0 +1,21 @@
+spring:
+  application:
+    name: stockflow
+
+  datasource:
+    url: jdbc:postgresql://localhost:55432/stockflow
+    username: stockflow
+    password: ${DB_PASSWORD:stockflow_dev_pw}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+server:
+  port: 8080
