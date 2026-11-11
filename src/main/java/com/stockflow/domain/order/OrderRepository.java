@@ -28,4 +28,9 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
             @Param("orderId") Long orderId
     );
 
+    // 주문 상품까지 함께 조회하는 이유는
+    // 재요청한 주문 내용이 기존 주문과 같은지 비교하기 위해서
+    @EntityGraph(attributePaths = {"items", "items.product"})
+    Optional<Order> findByIdempotencyKey(String idempotencyKey);
+
 }

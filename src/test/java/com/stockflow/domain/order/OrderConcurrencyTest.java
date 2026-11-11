@@ -5,6 +5,7 @@ import com.stockflow.domain.inventory.InventoryHistoryRepository;
 import com.stockflow.domain.inventory.InventoryRepository;
 import com.stockflow.domain.inventory.exception.InsufficientStockException;
 import com.stockflow.domain.order.dto.OrderCreateItem;
+import com.stockflow.domain.order.exception.IdempotencyConflictException;
 import com.stockflow.domain.order.exception.OrderCancellationException;
 import com.stockflow.domain.product.ProductService;
 
@@ -19,6 +20,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.*;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -325,6 +327,200 @@ class OrderConcurrencyTest {
 
             assertThat(secondOrder.getTotalAmount())
                     .isEqualByComparingTo("220000");
+
+        } finally {
+            start.countDown();
+            executor.shutdownNow();
+            executor.awaitTermination(10, TimeUnit.SECONDS);
+        }
+    }
+
+    @Test
+    void 동일한_멱등성_키의_동시_주문은_한번만_생성된다()
+            throws Exception {
+
+        // given
+        Long productId = productService.registerProduct(
+                "멱등성 동시 주문 테스트 상품",
+                new BigDecimal("10000"),
+                10
+        );
+
+        String idempotencyKey = UUID.randomUUID().toString();
+
+        long beforeOrderCount = orderRepository.count();
+
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+
+        // 동일한 주문 요청 2건이 하나의 멱등성 키를 놓고 경쟁
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+
+        List<Future<Long>> futures = new ArrayList<>();
+
+        try {
+            for (int i = 0; i < 2; i++) {
+
+                futures.add(executor.submit(() -> {
+
+                    ready.countDown();
+
+                    if (!start.await(10, TimeUnit.SECONDS)) {
+                        throw new IllegalStateException(
+                                "동시 시작 대기 시간 초과"
+                        );
+                    }
+
+                    return orderService.createOrder(
+                            List.of(new OrderCreateItem(productId, 3)),
+                            idempotencyKey
+                    );
+                }));
+            }
+
+            assertThat(ready.await(10, TimeUnit.SECONDS))
+                    .isTrue();
+
+            // 두 스레드 동시 시작
+            start.countDown();
+
+            Long firstOrderId = futures.get(0)
+                    .get(60, TimeUnit.SECONDS);
+
+            Long secondOrderId = futures.get(1)
+                    .get(60, TimeUnit.SECONDS);
+
+            // 동일한 주문 ID를 반환해야 함
+            assertThat(firstOrderId)
+                    .isEqualTo(secondOrderId);
+
+            // 실제 주문 생성은 1건
+            assertThat(orderRepository.count())
+                    .isEqualTo(beforeOrderCount + 1);
+
+            Inventory inventory = inventoryRepository
+                    .findByProductId(productId)
+                    .orElseThrow();
+
+            // 재고는 한 번만 차감
+            assertThat(inventory.getQuantity())
+                    .isEqualTo(7);
+
+            // INITIAL 1건 + OUTBOUND 1건
+            assertThat(historyRepository
+                    .findByInventoryIdOrderByIdDesc(inventory.getId()))
+                    .hasSize(2);
+
+        } finally {
+            start.countDown();
+            executor.shutdownNow();
+            executor.awaitTermination(10, TimeUnit.SECONDS);
+        }
+    }
+
+    // 먼저 처리된 요청만 성공하고
+    // 나중 요청은 IdempotencyConflictException이 발생해야 함
+    @Test
+    void 동일한_키로_서로_다른_주문을_동시에_요청하면_하나만_성공한다()
+            throws Exception {
+
+        // given
+        Long productId = productService.registerProduct(
+                "멱등성 충돌 테스트 상품",
+                new BigDecimal("10000"),
+                10
+        );
+
+        String idempotencyKey = UUID.randomUUID().toString();
+
+        long beforeOrderCount = orderRepository.count();
+
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+
+        // CountDownLatch로 동시에 시작하더라도
+        // 어느 스레드가 먼저 락을 획득할지는 알 수 없음
+        // 재고를 무조건 8개 또는 5개라고 검증하지 않고,
+        // 실제 DB에 저장된 주문 수량을 조회해서 검증
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+
+        List<Future<Boolean>> futures = new ArrayList<>();
+
+        try {
+            for (int quantity : List.of(2, 5)) {
+
+                futures.add(executor.submit(() -> {
+
+                    ready.countDown();
+
+                    if (!start.await(10, TimeUnit.SECONDS)) {
+                        throw new IllegalStateException(
+                                "동시 시작 대기 시간 초과"
+                        );
+                    }
+
+                    try {
+                        orderService.createOrder(
+                                List.of(new OrderCreateItem(productId, quantity)),
+                                idempotencyKey
+                        );
+
+                        return true;
+
+                    } catch (IdempotencyConflictException e) {
+                        return false;
+                    }
+                }));
+            }
+
+            assertThat(ready.await(10, TimeUnit.SECONDS))
+                    .isTrue();
+
+            start.countDown();
+
+            int successCount = 0;
+            int conflictCount = 0;
+
+            for (Future<Boolean> future : futures) {
+                if (future.get(60, TimeUnit.SECONDS)) {
+                    successCount++;
+                } else {
+                    conflictCount++;
+                }
+            }
+
+            // then: 주문 1건 성공, 다른 요청은 충돌
+            assertThat(successCount).isEqualTo(1);
+            assertThat(conflictCount).isEqualTo(1);
+
+            assertThat(orderRepository.count())
+                    .isEqualTo(beforeOrderCount + 1);
+
+            // 실제 저장된 주문을 기준으로 재고 검증
+            Order savedOrder = orderRepository
+                    .findByIdempotencyKey(idempotencyKey)
+                    .orElseThrow();
+
+            assertThat(savedOrder.getItems()).hasSize(1);
+
+            int savedQuantity = savedOrder.getItems()
+                    .get(0)
+                    .getQuantity();
+
+            // 먼저 성공한 주문이 2개 또는 5개일 수 있음
+            assertThat(savedQuantity).isIn(2, 5);
+
+            Inventory inventory = inventoryRepository
+                    .findByProductId(productId)
+                    .orElseThrow();
+
+            assertThat(inventory.getQuantity())
+                    .isEqualTo(10 - savedQuantity);
+
+            // INITIAL 1건 + OUTBOUND 1건
+            assertThat(historyRepository
+                    .findByInventoryIdOrderByIdDesc(inventory.getId()))
+                    .hasSize(2);
 
         } finally {
             start.countDown();

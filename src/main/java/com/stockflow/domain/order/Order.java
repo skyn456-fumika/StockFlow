@@ -41,10 +41,36 @@ public class Order {
     )
     private List<OrderItem> items = new ArrayList<>();
 
+    @Column(
+            name = "idempotency_key",
+            length = 100,
+            unique = true
+    )
+    private String idempotencyKey;
+
     public Order() {
         this.status = OrderStatus.CREATED;
         this.totalAmount = BigDecimal.ZERO;
         this.createdAt = LocalDateTime.now();
+    }
+
+    public Order(String idempotencyKey) {
+        this();
+
+        if (idempotencyKey == null
+                || idempotencyKey.isBlank()) {
+            throw new IllegalArgumentException(
+                    "멱등성 키는 필수입니다."
+            );
+        }
+
+        if (idempotencyKey.length() > 100) {
+            throw new IllegalArgumentException(
+                    "멱등성 키는 100자를 초과할 수 없습니다."
+            );
+        }
+
+        this.idempotencyKey = idempotencyKey;
     }
 
     public void addItem(OrderItem item) {
@@ -80,6 +106,10 @@ public class Order {
 
     public List<OrderItem> getItems() {
         return Collections.unmodifiableList(items);
+    }
+
+    public String getIdempotencyKey() {
+        return idempotencyKey;
     }
 
     // 취소 메서드

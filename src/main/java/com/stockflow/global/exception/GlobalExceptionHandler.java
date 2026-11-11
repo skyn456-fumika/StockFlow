@@ -98,4 +98,15 @@ public class GlobalExceptionHandler {
                         e.getMessage()
                 ));
     }
+
+    @ExceptionHandler(IdempotencyConflictException.class)
+    public ResponseEntity<ApiErrorResponse> handleIdempotencyConflict(
+            IdempotencyConflictException e
+    ) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(new ApiErrorResponse(
+                        "IDEMPOTENCY_CONFLICT",
+                        e.getMessage()
+                ));
+    }
 }

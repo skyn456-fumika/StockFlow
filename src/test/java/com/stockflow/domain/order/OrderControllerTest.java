@@ -26,6 +26,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import com.stockflow.domain.order.dto.OrderCreateItem;
 
 import java.util.List;
+import java.util.UUID;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 
@@ -69,6 +70,7 @@ class OrderControllerTest {
         long beforeCount = orderRepository.count();
 
         mockMvc.perform(post("/api/orders")
+                        .header("Idempotency-Key", UUID.randomUUID().toString())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                 {
@@ -96,6 +98,7 @@ class OrderControllerTest {
         long beforeCount = orderRepository.count();
 
         mockMvc.perform(post("/api/orders")
+                        .header("Idempotency-Key", UUID.randomUUID().toString())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                     {
@@ -117,6 +120,7 @@ class OrderControllerTest {
         long beforeCount = orderRepository.count();
 
         mockMvc.perform(post("/api/orders")
+                        .header("Idempotency-Key", UUID.randomUUID().toString())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                     {
@@ -146,6 +150,7 @@ class OrderControllerTest {
         long beforeCount = orderRepository.count();
 
         mockMvc.perform(post("/api/orders")
+                        .header("Idempotency-Key", UUID.randomUUID().toString())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                     {
@@ -173,6 +178,7 @@ class OrderControllerTest {
         long beforeCount = orderRepository.count();
 
         mockMvc.perform(post("/api/orders")
+                        .header("Idempotency-Key", UUID.randomUUID().toString())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                 {
@@ -198,6 +204,7 @@ class OrderControllerTest {
         long beforeCount = orderRepository.count();
 
         mockMvc.perform(post("/api/orders")
+                        .header("Idempotency-Key", UUID.randomUUID().toString())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                 {
@@ -234,6 +241,7 @@ class OrderControllerTest {
         long beforeCount = orderRepository.count();
 
         mockMvc.perform(post("/api/orders")
+                        .header("Idempotency-Key", UUID.randomUUID().toString())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                 {
@@ -344,5 +352,250 @@ class OrderControllerTest {
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code")
                         .value("ORDER_NOT_FOUND"));
+    }
+
+    @Test
+    void 동일한_멱등성_키로_재요청하면_기존_주문을_반환한다()
+            throws Exception {
+
+        Long productId = productService.registerProduct(
+                "멱등성 테스트 상품",
+                new BigDecimal("10000"),
+                10
+        );
+
+        String key = UUID.randomUUID().toString();
+
+        String body = """
+            {
+                "items": [
+                    {"productId": %d, "quantity": 3}
+                ]
+            }
+            """.formatted(productId);
+
+        long beforeCount = orderRepository.count();
+
+        String firstResponse = mockMvc.perform(post("/api/orders")
+                        .header("Idempotency-Key", key)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isCreated())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        String secondResponse = mockMvc.perform(post("/api/orders")
+                        .header("Idempotency-Key", key)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isCreated())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        assertThat(secondResponse).isEqualTo(firstResponse);
+
+        assertThat(orderRepository.count())
+                .isEqualTo(beforeCount + 1);
+
+        assertThat(inventoryRepository.findByProductId(productId)
+                .orElseThrow().getQuantity())
+                .isEqualTo(7);
+    }
+
+    @Test
+    void 동일한_키로_다른_주문을_요청하면_409를_반환한다()
+            throws Exception {
+
+        Long productId = productService.registerProduct(
+                "주문 비교 테스트 상품",
+                new BigDecimal("10000"),
+                10
+        );
+
+        String key = UUID.randomUUID().toString();
+
+        mockMvc.perform(post("/api/orders")
+                        .header("Idempotency-Key", key)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                {
+                    "items": [
+                        {"productId": %d, "quantity": 2}
+                    ]
+                }
+                """.formatted(productId)))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(post("/api/orders")
+                        .header("Idempotency-Key", key)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                {
+                    "items": [
+                        {"productId": %d, "quantity": 3}
+                    ]
+                }
+                """.formatted(productId)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code")
+                        .value("IDEMPOTENCY_CONFLICT"));
+
+        assertThat(inventoryRepository.findByProductId(productId)
+                .orElseThrow().getQuantity())
+                .isEqualTo(8);
+    }
+
+    @Test
+    void 멱등성_키가_없으면_400을_반환한다()
+            throws Exception {
+
+        Long productId = productService.registerProduct(
+                "헤더 검증 상품",
+                new BigDecimal("10000"),
+                10
+        );
+
+        long beforeCount = orderRepository.count();
+
+        mockMvc.perform(post("/api/orders")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                {
+                    "items": [
+                        {"productId": %d, "quantity": 1}
+                    ]
+                }
+                """.formatted(productId)))
+                .andExpect(status().isBadRequest());
+
+        assertThat(orderRepository.count())
+                .isEqualTo(beforeCount);
+    }
+
+    // 상품 목록의 순서가 달라도 동일한 주문 내용이면 기존 주문을 반환하는지 검증
+    // hasSameItems()가 올바르게 작동하는지 확인하는 과정
+    @Test
+    void 상품_순서만_다른_재요청은_기존_주문을_반환한다()
+            throws Exception {
+
+        Long keyboardId = productService.registerProduct(
+                "키보드", new BigDecimal("50000"), 10
+        );
+
+        Long mouseId = productService.registerProduct(
+                "마우스", new BigDecimal("30000"), 10
+        );
+
+        String key = UUID.randomUUID().toString();
+        long beforeCount = orderRepository.count();
+
+        String firstResponse = mockMvc.perform(post("/api/orders")
+                        .header("Idempotency-Key", key)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                {
+                    "items": [
+                        {"productId": %d, "quantity": 2},
+                        {"productId": %d, "quantity": 3}
+                    ]
+                }
+                """.formatted(keyboardId, mouseId)))
+                .andExpect(status().isCreated())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        String secondResponse = mockMvc.perform(post("/api/orders")
+                        .header("Idempotency-Key", key)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                {
+                    "items": [
+                        {"productId": %d, "quantity": 3},
+                        {"productId": %d, "quantity": 2}
+                    ]
+                }
+                """.formatted(mouseId, keyboardId)))
+                .andExpect(status().isCreated())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        assertThat(secondResponse).isEqualTo(firstResponse);
+
+        assertThat(orderRepository.count())
+                .isEqualTo(beforeCount + 1);
+
+        assertThat(inventoryRepository.findByProductId(keyboardId)
+                .orElseThrow().getQuantity()).isEqualTo(8);
+
+        assertThat(inventoryRepository.findByProductId(mouseId)
+                .orElseThrow().getQuantity()).isEqualTo(7);
+    }
+
+    @Test
+    void 취소된_주문을_같은_키로_재요청해도_새_주문은_생성되지_않는다()
+            throws Exception {
+
+        Long productId = productService.registerProduct(
+                "취소 재요청 상품",
+                new BigDecimal("10000"),
+                10
+        );
+
+        String key = UUID.randomUUID().toString();
+
+        String body = """
+            {
+                "items": [
+                    {"productId": %d, "quantity": 3}
+                ]
+            }
+            """.formatted(productId);
+
+        long beforeCount = orderRepository.count();
+
+        String firstResponse = mockMvc.perform(post("/api/orders")
+                        .header("Idempotency-Key", key)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isCreated())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        Order order = orderRepository.findByIdempotencyKey(key)
+                .orElseThrow();
+
+        Long orderId = order.getId();
+
+        // 주문 취소 → 재고 복구
+        mockMvc.perform(post("/api/orders/{orderId}/cancel", orderId))
+                .andExpect(status().isNoContent());
+
+        // 같은 키로 다시 주문 요청
+        String secondResponse = mockMvc.perform(post("/api/orders")
+                        .header("Idempotency-Key", key)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isCreated())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        assertThat(secondResponse).isEqualTo(firstResponse);
+
+        assertThat(orderRepository.count())
+                .isEqualTo(beforeCount + 1);
+
+        assertThat(orderRepository.findById(orderId)
+                .orElseThrow().getStatus())
+                .isEqualTo(OrderStatus.CANCELLED);
+
+        // 재고가 다시 차감되지 않아야 함
+        assertThat(inventoryRepository.findByProductId(productId)
+                .orElseThrow().getQuantity()).isEqualTo(10);
     }
 }

@@ -25,23 +25,34 @@ public class OrderService {
     private final ProductRepository productRepository;
     private final InventoryRepository inventoryRepository;
     private final InventoryHistoryRepository historyRepository;
+    private final OrderIdempotencyLock idempotencyLock;
 
     public OrderService(
             OrderRepository orderRepository,
             ProductRepository productRepository,
             InventoryRepository inventoryRepository,
-            InventoryHistoryRepository historyRepository
+            InventoryHistoryRepository historyRepository,
+            OrderIdempotencyLock idempotencyLock
     ) {
         this.orderRepository = orderRepository;
         this.productRepository = productRepository;
         this.inventoryRepository = inventoryRepository;
         this.historyRepository = historyRepository;
+        this.idempotencyLock = idempotencyLock;
+    }
+
+    @Transactional
+    public Long createOrder(List<OrderCreateItem> requestItems) {
+        return createOrder(requestItems, null);
     }
 
     // 재고 차감, 변경 이력 저장, 주문 저장을 하나의 트랜잭션으로 묶음
     // 여러 상품 중 마지막 상품의 재고가 부족하더라도 앞서 차감한 재고와 이력이 모두 롤백
     @Transactional
-    public Long createOrder(List<OrderCreateItem> requestItems) {
+    public Long createOrder(
+            List<OrderCreateItem> requestItems,
+            String idempotencyKey
+    ) {
 
         if (requestItems == null || requestItems.isEmpty()) {
             throw new IllegalArgumentException(
@@ -49,7 +60,6 @@ public class OrderService {
             );
         }
 
-        // 상품 ID 중복 및 수량 검증
         Set<Long> productIds = new HashSet<>();
 
         for (OrderCreateItem item : requestItems) {
@@ -66,13 +76,42 @@ public class OrderService {
             }
         }
 
-        // 여러 상품 주문 시 락 획득 순서를 일정하게 유지
+        // 멱등성 키가 있는 요청만 기존 주문 확인
+        if (idempotencyKey != null) {
+
+            if (idempotencyKey.isBlank()
+                    || idempotencyKey.length() > 100) {
+                throw new IllegalArgumentException(
+                        "올바른 멱등성 키가 필요합니다."
+                );
+            }
+
+            // 동일한 멱등성 키에 대한 동시 요청 직렬화
+            // 이 메서드에는 반드시 @Transactional이 있어야 함
+            // 잠금 획득부터 주문 저장과 커밋까지 같은 트랜잭션 안에서 실행되어야 하기 때문
+            idempotencyLock.lock(idempotencyKey);
+
+            var existingOrder = orderRepository
+                    .findByIdempotencyKey(idempotencyKey);
+
+            if (existingOrder.isPresent()) {
+                Order existing = existingOrder.get();
+
+                if (!hasSameItems(existing, requestItems)) {
+                    throw new IdempotencyConflictException();
+                }
+
+                return existing.getId();
+            }
+        }
+
         List<OrderCreateItem> sortedItems = requestItems.stream()
-                // 상품 ID 정렬
                 .sorted(Comparator.comparing(OrderCreateItem::productId))
                 .toList();
 
-        Order order = new Order();
+        Order order = idempotencyKey == null
+                ? new Order()
+                : new Order(idempotencyKey);
 
         for (OrderCreateItem item : sortedItems) {
 
@@ -86,18 +125,14 @@ public class OrderService {
                 throw new ProductNotAvailableException(product.getId());
             }
 
-            // 동일 재고를 동시에 변경하는 요청은 행 잠금을 통해 순차 처리되도록
-            // 비관적 락
             Inventory inventory = inventoryRepository
                     .findByProductIdForUpdate(product.getId())
                     .orElseThrow(() ->
                             new InventoryNotFoundException(product.getId())
                     );
 
-            // 재고 부족 시 예외 발생
             inventory.decrease(item.quantity());
 
-            // 주문으로 인한 재고 변경 이력
             historyRepository.save(
                     new InventoryHistory(
                             inventory,
@@ -113,9 +148,26 @@ public class OrderService {
             ));
         }
 
-        Order saved = orderRepository.save(order);
+        return orderRepository.save(order).getId();
+    }
 
-        return saved.getId();
+    // 비교 메서드
+    // 상품 순서와 관계없이 상품 ID와 수량을 검증
+    private boolean hasSameItems(
+            Order order,
+            List<OrderCreateItem> requestItems
+    ) {
+        if (order.getItems().size() != requestItems.size()) {
+            return false;
+        }
+
+        return requestItems.stream().allMatch(request ->
+                order.getItems().stream().anyMatch(saved ->
+                        saved.getProduct().getId()
+                                .equals(request.productId())
+                                && saved.getQuantity() == request.quantity()
+                )
+        );
     }
 
     // 상세 조회 메서드

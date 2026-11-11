@@ -7,8 +7,10 @@ import com.stockflow.domain.order.dto.OrderCreateResponse;
 import com.stockflow.domain.order.dto.OrderDetailResponse;
 import jakarta.validation.Valid;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.net.URI;
 import java.util.List;
@@ -26,8 +28,18 @@ public class OrderController {
     // 주문 생성 REST API
     @PostMapping
     public ResponseEntity<OrderCreateResponse> createOrder(
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
             @Valid @RequestBody OrderCreateRequest request
     ) {
+
+        if (idempotencyKey.isBlank()
+                || idempotencyKey.length() > 100) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "올바른 Idempotency-Key가 필요합니다."
+            );
+        }
+
         List<OrderCreateItem> items = request.items().stream()
                 .map(item -> new OrderCreateItem(
                         item.productId(),
@@ -35,7 +47,10 @@ public class OrderController {
                 ))
                 .toList();
 
-        Long orderId = orderService.createOrder(items);
+        Long orderId = orderService.createOrder(
+                items,
+                idempotencyKey
+        );
 
         return ResponseEntity
                 .created(URI.create("/api/orders/" + orderId))
