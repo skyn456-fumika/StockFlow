@@ -32,6 +32,28 @@ services:
       retries: 5
     restart: unless-stopped
 
+  rabbitmq:
+    # RabbitMQ 공식 Docker 이미지에는 관리 화면이 포함된 management-alpine 변형이 제공
+    image: rabbitmq:4.3-management-alpine
+    container_name: stockflow-rabbitmq
+    hostname: stockflow-rabbitmq
+    ports:
+      - "127.0.0.1:5673:5672"   # Spring Boot에서 RabbitMQ에 연결
+      - "127.0.0.1:15673:15672" # RabbitMQ 웹 관리 화면
+    environment:
+      RABBITMQ_DEFAULT_USER: stockflow
+      RABBITMQ_DEFAULT_PASS: stockflow_dev_pw
+    volumes:
+      - stockflow_rabbitmqdata:/var/lib/rabbitmq
+    healthcheck:
+      test: [ "CMD", "rabbitmq-diagnostics", "-q", "ping" ]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+
 volumes:
   stockflow_pgdata:
   stockflow_redisdata: # Redis 데이터 저장용 볼륨
+  stockflow_rabbitmqdata:

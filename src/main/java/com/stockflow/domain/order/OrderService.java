@@ -6,17 +6,19 @@ import com.stockflow.domain.inventory.exception.InventoryNotFoundException;
 import com.stockflow.domain.order.dto.OrderCreateItem;
 import com.stockflow.domain.order.dto.OrderDetailResponse;
 import com.stockflow.domain.order.exception.*;
+import com.stockflow.domain.order.outbox.OrderOutbox;
+import com.stockflow.domain.order.outbox.OrderOutboxMessage;
+import com.stockflow.domain.order.outbox.OrderOutboxRepository;
 import com.stockflow.domain.product.Product;
 import com.stockflow.domain.product.ProductRepository;
 import com.stockflow.domain.product.ProductStatus;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.databind.json.JsonMapper;
 
-import java.util.Comparator;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.time.LocalDateTime;
+import java.util.*;
 
 @Service
 public class OrderService {
@@ -26,19 +28,25 @@ public class OrderService {
     private final InventoryRepository inventoryRepository;
     private final InventoryHistoryRepository historyRepository;
     private final OrderIdempotencyLock idempotencyLock;
+    private final OrderOutboxRepository outboxRepository;
+    private final JsonMapper jsonMapper;
 
     public OrderService(
             OrderRepository orderRepository,
             ProductRepository productRepository,
             InventoryRepository inventoryRepository,
             InventoryHistoryRepository historyRepository,
-            OrderIdempotencyLock idempotencyLock
+            OrderIdempotencyLock idempotencyLock,
+            OrderOutboxRepository outboxRepository,
+            JsonMapper jsonMapper
     ) {
         this.orderRepository = orderRepository;
         this.productRepository = productRepository;
         this.inventoryRepository = inventoryRepository;
         this.historyRepository = historyRepository;
         this.idempotencyLock = idempotencyLock;
+        this.outboxRepository = outboxRepository;
+        this.jsonMapper = jsonMapper;
     }
 
     @Transactional
@@ -148,7 +156,11 @@ public class OrderService {
             ));
         }
 
-        return orderRepository.save(order).getId();
+        Order saved = orderRepository.save(order);
+
+        saveOutboxEvent(saved.getId(), "ORDER_CREATED");
+
+        return saved.getId();
     }
 
     // 비교 메서드
@@ -224,6 +236,35 @@ public class OrderService {
             );
         }
 
+        // 주문 취소 상태 변경과 이벤트 저장이 같은 트랜잭션에서 처리
         order.cancel();
+
+        saveOutboxEvent(orderId, "ORDER_CANCELLED");
+    }
+
+    // Outbox 저장용 내부 메서드
+    private void saveOutboxEvent(
+            Long orderId,
+            String eventType
+    ) {
+        UUID eventId = UUID.randomUUID();
+
+        OrderOutboxMessage message = new OrderOutboxMessage(
+                eventId,
+                orderId,
+                eventType,
+                LocalDateTime.now()
+        );
+
+        String payload = jsonMapper.writeValueAsString(message);
+
+        outboxRepository.save(
+                new OrderOutbox(
+                        eventId,
+                        orderId,
+                        eventType,
+                        payload
+                )
+        );
     }
 }

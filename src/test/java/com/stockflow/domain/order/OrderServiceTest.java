@@ -2,6 +2,10 @@ package com.stockflow.domain.order;
 
 import com.stockflow.domain.inventory.*;
 import com.stockflow.domain.order.dto.OrderCreateItem;
+import com.stockflow.domain.order.outbox.OrderOutbox;
+import com.stockflow.domain.order.outbox.OrderOutboxMessage;
+import com.stockflow.domain.order.outbox.OrderOutboxRepository;
+import com.stockflow.domain.order.outbox.OutboxStatus;
 import com.stockflow.domain.product.ProductService;
 
 import org.junit.jupiter.api.Test;
@@ -11,9 +15,11 @@ import org.springframework.boot.testcontainers.service.connection.ServiceConnect
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.*;
 
@@ -42,6 +48,12 @@ class OrderServiceTest {
 
     @Autowired
     InventoryHistoryRepository historyRepository;
+
+    @Autowired
+    OrderOutboxRepository outboxRepository;
+
+    @Autowired
+    JsonMapper jsonMapper;
 
     @Test
     void 주문_생성시_재고가_차감된다() {
@@ -233,5 +245,127 @@ class OrderServiceTest {
         assertThat(orderRepository.findById(orderId)
                 .orElseThrow().getStatus())
                 .isEqualTo(OrderStatus.CANCELLED);
+    }
+
+    @Test
+    void 주문_생성시_Outbox_이벤트도_저장된다() {
+
+        Long productId = productService.registerProduct(
+                "Outbox 테스트 키보드",
+                new BigDecimal("50000"),
+                10
+        );
+
+        Long orderId = orderService.createOrder(
+                List.of(new OrderCreateItem(productId, 2))
+        );
+
+        List<OrderOutbox> events =
+                outboxRepository.findByOrderIdOrderByIdAsc(orderId);
+
+        assertThat(events).hasSize(1);
+
+        OrderOutbox event = events.get(0);
+
+        assertThat(event.getEventType()).isEqualTo("ORDER_CREATED");
+        assertThat(event.getStatus()).isEqualTo(OutboxStatus.PENDING);
+        assertThat(event.getPublishedAt()).isNull();
+
+        OrderOutboxMessage message = jsonMapper.readValue(
+                event.getPayload(),
+                OrderOutboxMessage.class
+        );
+
+        assertThat(message.eventId()).isEqualTo(event.getEventId());
+        assertThat(message.orderId()).isEqualTo(orderId);
+        assertThat(message.eventType()).isEqualTo("ORDER_CREATED");
+    }
+
+    @Test
+    // Outbox 저장 이전에 실패하는 시나리오
+    void 주문_실패시_Outbox_이벤트도_생성되지_않는다() {
+
+        Long productId = productService.registerProduct(
+                "재고 부족 상품",
+                new BigDecimal("30000"),
+                1
+        );
+
+        long beforeCount = outboxRepository.count();
+
+        assertThatThrownBy(() ->
+                orderService.createOrder(
+                        List.of(new OrderCreateItem(productId, 3))
+                )
+        ).isInstanceOf(IllegalStateException.class);
+
+        assertThat(outboxRepository.count())
+                .isEqualTo(beforeCount);
+    }
+
+    @Test
+    void 주문_취소시_Outbox에_취소_이벤트가_저장된다() {
+
+        Long productId = productService.registerProduct(
+                "취소 이벤트 상품",
+                new BigDecimal("20000"),
+                10
+        );
+
+        Long orderId = orderService.createOrder(
+                List.of(new OrderCreateItem(productId, 3))
+        );
+
+        orderService.cancelOrder(orderId);
+
+        List<OrderOutbox> events =
+                outboxRepository.findByOrderIdOrderByIdAsc(orderId);
+
+        assertThat(events).hasSize(2);
+
+        assertThat(events)
+                .extracting(OrderOutbox::getEventType)
+                .containsExactly(
+                        "ORDER_CREATED",
+                        "ORDER_CANCELLED"
+                );
+
+        assertThat(events)
+                .extracting(OrderOutbox::getStatus)
+                .containsOnly(OutboxStatus.PENDING);
+
+        assertThat(orderRepository.findById(orderId)
+                .orElseThrow().getStatus())
+                .isEqualTo(OrderStatus.CANCELLED);
+    }
+
+    @Test
+    // 멱등성 로직과 Outbox가 충돌하지 않는지 확인
+    void 동일한_멱등성_키로_재요청하면_Outbox도_중복_생성되지_않는다() {
+
+        Long productId = productService.registerProduct(
+                "멱등성 Outbox 상품",
+                new BigDecimal("10000"),
+                10
+        );
+
+        String key = UUID.randomUUID().toString();
+
+        List<OrderCreateItem> items = List.of(
+                new OrderCreateItem(productId, 2)
+        );
+
+        Long firstOrderId = orderService.createOrder(items, key);
+        Long secondOrderId = orderService.createOrder(items, key);
+
+        assertThat(secondOrderId).isEqualTo(firstOrderId);
+
+        assertThat(outboxRepository
+                .findByOrderIdOrderByIdAsc(firstOrderId))
+                .hasSize(1);
+
+        assertThat(inventoryRepository.findByProductId(productId)
+                .orElseThrow().getQuantity())
+                .isEqualTo(8);
     }
 }
