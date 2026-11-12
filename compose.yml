@@ -17,5 +17,21 @@ services:
       timeout: 3s
       retries: 10
 
+  redis:
+    image: redis:7-alpine # Redis 7 기반 경량 이미지
+    container_name: stockflow-redis
+    ports:
+      - "127.0.0.1:6380:6379" # 로컬 PC의 56379 포트를 Redis에 연결
+    volumes:
+      - stockflow_redisdata:/data
+    command: ["redis-server", "--appendonly", "yes"] # Redis AOF 영속성 활성화
+    healthcheck: # Redis 정상 응답 확인
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
 volumes:
   stockflow_pgdata:
+  stockflow_redisdata: # Redis 데이터 저장용 볼륨

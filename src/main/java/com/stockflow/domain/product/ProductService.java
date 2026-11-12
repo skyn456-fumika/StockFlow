@@ -2,6 +2,10 @@ package com.stockflow.domain.product;
 
 import com.stockflow.domain.inventory.Inventory;
 import com.stockflow.domain.inventory.InventoryRepository;
+import com.stockflow.domain.inventory.exception.InventoryNotFoundException;
+import com.stockflow.domain.product.dto.ProductInfoResponse;
+import com.stockflow.domain.product.event.ProductInfoChangedEvent;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,15 +31,21 @@ public class ProductService {
     private final ProductRepository productRepository;
     private final InventoryRepository inventoryRepository;
     private final InventoryHistoryRepository inventoryHistoryRepository;
+    private final ProductInfoCacheService productInfoCacheService;
+    private final ApplicationEventPublisher eventPublisher;
 
     public ProductService(
             ProductRepository productRepository,
             InventoryRepository inventoryRepository,
-            InventoryHistoryRepository inventoryHistoryRepository
+            InventoryHistoryRepository inventoryHistoryRepository,
+            ProductInfoCacheService productInfoCacheService,
+            ApplicationEventPublisher eventPublisher
     ) {
         this.productRepository = productRepository;
         this.inventoryRepository = inventoryRepository;
         this.inventoryHistoryRepository = inventoryHistoryRepository;
+        this.productInfoCacheService = productInfoCacheService;
+        this.eventPublisher = eventPublisher;
     }
 
     // 상품 저장에는 성공했는데 재고 저장 중 예외가 발생한다면,
@@ -89,23 +99,22 @@ public class ProductService {
     @Transactional(readOnly = true)
     public ProductResponse getProduct(Long productId) {
 
-        Product product = productRepository.findById(productId)
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND,
-                        "상품을 찾을 수 없습니다."
-                ));
+        // 상품 기본 정보: Redis 캐시 사용
+        ProductInfoResponse info =
+                productInfoCacheService.getProductInfo(productId);
 
+        // 재고: PostgreSQL에서 항상 조회
         Inventory inventory = inventoryRepository
                 .findByProductId(productId)
-                .orElseThrow(() -> new IllegalStateException(
-                        "상품의 재고 정보가 없습니다."
-                ));
+                .orElseThrow(() ->
+                        new InventoryNotFoundException(productId)
+                );
 
         return new ProductResponse(
-                product.getId(),
-                product.getName(),
-                product.getPrice(),
-                product.getStatus(),
+                info.productId(),
+                info.name(),
+                info.price(),
+                info.status(),
                 inventory.getQuantity()
         );
     }
@@ -126,6 +135,27 @@ public class ProductService {
 
         return ProductPageResponse.from(
                 inventoryRepository.findProductSummaries(pageable)
+        );
+    }
+
+    @Transactional
+    public void updateProductInfo(
+            Long productId,
+            String name,
+            BigDecimal price
+    ) {
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "상품을 찾을 수 없습니다."
+                ));
+
+        product.updateInfo(name, price);
+
+        // publishEvent()를 호출했다고 해서 Redis 캐시가 즉시 삭제되는 것은 아님
+        // 리스너가 트랜잭션 커밋을 기다리도록 만듬
+        eventPublisher.publishEvent(
+                new ProductInfoChangedEvent(productId)
         );
     }
 }

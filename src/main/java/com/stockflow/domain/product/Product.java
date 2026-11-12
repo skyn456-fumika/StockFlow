@@ -54,4 +54,20 @@ public class Product {
     public LocalDateTime getCreatedAt() {
         return createdAt;
     }
+
+    // JPA 변경 감지를 이용할 예정이므로 별도로 save() x
+    public void updateInfo(String name, BigDecimal price) {
+        if (name == null || name.isBlank() || name.length() > 100) {
+            throw new IllegalArgumentException("올바른 상품명이 필요합니다.");
+        }
+
+        if (price == null || price.signum() < 0
+                || price.scale() > 2
+                || price.precision() - price.scale() > 10) {
+            throw new IllegalArgumentException("올바른 상품 가격이 필요합니다.");
+        }
+
+        this.name = name;
+        this.price = price;
+    }
 }

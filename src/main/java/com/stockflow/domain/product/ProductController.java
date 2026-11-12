@@ -1,16 +1,12 @@
 package com.stockflow.domain.product;
 
-import com.stockflow.domain.product.dto.ProductCreateRequest;
-import com.stockflow.domain.product.dto.ProductCreateResponse;
+import com.stockflow.domain.product.dto.*;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.net.URI;
-
-import com.stockflow.domain.product.dto.ProductResponse;
-import com.stockflow.domain.product.dto.ProductPageResponse;
 
 @RestController
 @RequestMapping("/api/products")
@@ -57,5 +53,19 @@ public class ProductController {
         return ResponseEntity.ok(
                 productService.getProducts(page, size)
         );
+    }
+
+    @PutMapping("/{productId}")
+    public ResponseEntity<Void> updateProduct(
+            @PathVariable Long productId,
+            @Valid @RequestBody ProductUpdateRequest request
+    ) {
+        productService.updateProductInfo(
+                productId,
+                request.name(),
+                request.price()
+        );
+
+        return ResponseEntity.noContent().build();
     }
 }
