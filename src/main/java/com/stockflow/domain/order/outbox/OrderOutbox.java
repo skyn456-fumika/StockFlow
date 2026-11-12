@@ -35,6 +35,12 @@ public class OrderOutbox {
     @Column(name = "published_at")
     private LocalDateTime publishedAt;
 
+    @Column(name = "retry_count", nullable = false)
+    private int retryCount = 0;
+
+    @Column(name = "next_retry_at")
+    private LocalDateTime nextRetryAt;
+
     protected OrderOutbox() {
     }
 
@@ -83,6 +89,42 @@ public class OrderOutbox {
 
         this.status = OutboxStatus.PUBLISHED;
         this.publishedAt = LocalDateTime.now();
+        nextRetryAt = null;
+    }
+
+    public void scheduleRetry(LocalDateTime failedAt) {
+
+        if (status != OutboxStatus.PENDING) {
+            throw new IllegalStateException(
+                    "발행 완료된 이벤트는 재시도할 수 없습니다."
+            );
+        }
+
+        if (failedAt == null) {
+            throw new IllegalArgumentException(
+                    "실패 시각은 필수입니다."
+            );
+        }
+
+        retryCount++;
+
+        // 첫 실패 5초, 이후 2배씩 증가, 최대 300초
+        int exponent = Math.min(retryCount - 1, 6);
+
+        long delaySeconds = Math.min(
+                5L * (1L << exponent),
+                300L
+        );
+
+        nextRetryAt = failedAt.plusSeconds(delaySeconds);
+    }
+
+    public int getRetryCount() {
+        return retryCount;
+    }
+
+    public LocalDateTime getNextRetryAt() {
+        return nextRetryAt;
     }
 
     public Long getId() {

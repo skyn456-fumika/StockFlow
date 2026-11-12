@@ -41,6 +41,16 @@ public class OrderOutboxPublisher {
             return false;
         }
 
+        // 자체적으로 트랜잭션을 시작하지 않기 때문에
+        // 반드시 이미 트랜잭션과 행 잠금이 확보된 상태에서 호출해야 함
+        publishLocked(outbox);
+
+        return true;
+    }
+
+    // 이미 DB 행 잠금을 획득한 트랜잭션에서 호출
+    void publishLocked(OrderOutbox outbox) {
+
         Message message = MessageBuilder
                 .withBody(
                         outbox.getPayload()
@@ -51,16 +61,12 @@ public class OrderOutboxPublisher {
                 .setDeliveryMode(MessageDeliveryMode.PERSISTENT)
                 .build();
 
-        // Publisher Confirm + Returns 검증
         routingVerifier.sendAndVerify(
                 RabbitMqConfig.ORDER_EXCHANGE,
                 RabbitMqConfig.OUTBOX_ROUTING_KEY,
                 message
         );
 
-        // 발행 및 라우팅 확인에 성공한 경우에만 상태 변경
         outbox.markPublished();
-
-        return true;
     }
 }

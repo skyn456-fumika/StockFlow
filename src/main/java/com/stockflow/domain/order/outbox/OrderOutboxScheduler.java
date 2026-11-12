@@ -5,63 +5,85 @@ import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-import java.util.List;
-
 @Component
 public class OrderOutboxScheduler {
 
     private static final Logger log =
             LoggerFactory.getLogger(OrderOutboxScheduler.class);
 
-    private final OrderOutboxRepository outboxRepository;
-    private final OrderOutboxPublisher publisher;
+    private static final int BATCH_SIZE = 20;
+
+    private final OrderOutboxBatchPublisher batchPublisher;
+    private final OrderOutboxRetryService retryService;
 
     public OrderOutboxScheduler(
-            OrderOutboxRepository outboxRepository,
-            OrderOutboxPublisher publisher
+            OrderOutboxBatchPublisher batchPublisher,
+            OrderOutboxRetryService retryService
     ) {
-        this.outboxRepository = outboxRepository;
-        this.publisher = publisher;
+        this.batchPublisher = batchPublisher;
+        this.retryService = retryService;
     }
 
     @Scheduled(
-            // 한 번의 실행이 끝난 다음 5초가 지나면 다음 실행을 시작
             fixedDelayString = "${stockflow.outbox.poll-delay-ms:5000}",
             initialDelayString = "${stockflow.outbox.initial-delay-ms:5000}"
     )
     public void publishPendingEvents() {
 
-        log.info("Outbox 스케줄러 실행");
+        int publishedCount = 0;
 
-        List<OrderOutbox> pendingEvents =
-                outboxRepository.findTop20ByStatusOrderByIdAsc(
-                        OutboxStatus.PENDING
-                );
+        for (int i = 0; i < BATCH_SIZE; i++) {
 
-        log.info("발행 대기 이벤트 수: {}", pendingEvents.size());
-
-        for (OrderOutbox event : pendingEvents) {
             try {
-                // publishOne()의 @Transactional이 이벤트별로 트랜잭션 적용
-                // 따라서 하나의 이벤트 발행이 실패해도 다른 이벤트의 트랜잭션에는 영향을 주지 않음
-                boolean published = publisher.publishOne(event.getId());
+                boolean published = batchPublisher.publishNext();
 
-                if (published) {
-                    log.info(
-                            "Outbox 이벤트 발행 완료. eventId={}",
-                            event.getEventId()
-                    );
+                if (!published) {
+                    break;
                 }
 
-            } catch (Exception e) {
-                // 발행 실패 이벤트는 PENDING 상태로 유지되므로
-                // 다음 스케줄 실행에서 다시 시도할 수 있음
-                log.error(
-                        "Outbox 이벤트 발행 실패. outboxId={}",
-                        event.getId(),
+                publishedCount++;
+
+            } catch (OutboxPublishException e) {
+
+                log.warn(
+                        "Outbox 발행 실패. 재시도 예약. outboxId={}",
+                        e.getOutboxId(),
                         e
                 );
+
+                try {
+                    // 발행 트랜잭션 롤백 이후 별도 트랜잭션으로 저장
+                    retryService.recordFailure(e.getOutboxId());
+
+                } catch (Exception retryError) {
+                    log.error(
+                            "Outbox 재시도 정보 저장 실패. outboxId={}",
+                            e.getOutboxId(),
+                            retryError
+                    );
+
+                    break;
+                }
+
+                // 실패 이벤트는 재시도 시각까지 조회되지 않으므로
+                // 다른 이벤트 처리 계속 진행
+
+            } catch (Exception e) {
+
+                log.error(
+                        "Outbox 배치 처리 중 예상하지 못한 오류",
+                        e
+                );
+
+                break;
             }
+        }
+
+        if (publishedCount > 0) {
+            log.info(
+                    "Outbox 배치 발행 완료. publishedCount={}",
+                    publishedCount
+            );
         }
     }
 }
