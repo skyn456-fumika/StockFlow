@@ -2,8 +2,9 @@ package com.stockflow.domain.order.outbox;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+
+import java.time.Duration;
 
 @Component
 public class OrderOutboxScheduler {
@@ -15,24 +16,27 @@ public class OrderOutboxScheduler {
 
     private final OrderOutboxBatchPublisher batchPublisher;
     private final OrderOutboxRetryService retryService;
+    private final OrderOutboxPublishMetrics publishMetrics;
 
     public OrderOutboxScheduler(
             OrderOutboxBatchPublisher batchPublisher,
-            OrderOutboxRetryService retryService
+            OrderOutboxRetryService retryService,
+            OrderOutboxPublishMetrics publishMetrics
     ) {
         this.batchPublisher = batchPublisher;
         this.retryService = retryService;
+        this.publishMetrics = publishMetrics;
     }
 
-    @Scheduled(
-            fixedDelayString = "${stockflow.outbox.poll-delay-ms:5000}",
-            initialDelayString = "${stockflow.outbox.initial-delay-ms:5000}"
-    )
     public void publishPendingEvents() {
 
         int publishedCount = 0;
 
         for (int i = 0; i < BATCH_SIZE; i++) {
+
+            // 경과 시간 측정에 적합(System.nanoTime())
+            // LocalDateTime.now()와 달리 시스템 시계 변경에 따른 영향을 피할 수 있음
+            long startNanos = System.nanoTime();
 
             try {
                 boolean published = batchPublisher.publishNext();
@@ -41,9 +45,26 @@ public class OrderOutboxScheduler {
                     break;
                 }
 
+                // 발행 및 DB 트랜잭션 완료까지 걸린 시간
+                publishMetrics.recordDuration(
+                        Duration.ofNanos(
+                                System.nanoTime() - startNanos
+                        )
+                );
+
+                publishMetrics.recordSuccess();
                 publishedCount++;
 
             } catch (OutboxPublishException e) {
+
+                // 실패한 발행 시도도 Timer에 기록
+                publishMetrics.recordDuration(
+                        Duration.ofNanos(
+                                System.nanoTime() - startNanos
+                        )
+                );
+
+                publishMetrics.recordFailure();
 
                 log.warn(
                         "Outbox 발행 실패. 재시도 예약. outboxId={}",
@@ -52,7 +73,6 @@ public class OrderOutboxScheduler {
                 );
 
                 try {
-                    // 발행 트랜잭션 롤백 이후 별도 트랜잭션으로 저장
                     retryService.recordFailure(e.getOutboxId());
 
                     log.info(
@@ -61,6 +81,7 @@ public class OrderOutboxScheduler {
                     );
 
                 } catch (Exception retryError) {
+
                     log.error(
                             "Outbox 재시도 정보 저장 실패. outboxId={}",
                             e.getOutboxId(),
@@ -69,9 +90,6 @@ public class OrderOutboxScheduler {
 
                     break;
                 }
-
-                // 실패 이벤트는 재시도 시각까지 조회되지 않으므로
-                // 다른 이벤트 처리 계속 진행
 
             } catch (Exception e) {
 

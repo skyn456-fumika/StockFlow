@@ -1,18 +1,3 @@
-stockflow:
-  monitoring:
-    enabled: ${STOCKFLOW_MONITORING_ENABLED:false}
-    admin-token: ${STOCKFLOW_MONITORING_TOKEN:}
-  order:
-    consumer:
-      enabled: ${ORDER_CONSUMER_ENABLED:false}
-  outbox:
-    scheduling-enabled: ${OUTBOX_SCHEDULING_ENABLED:false}
-    poll-delay-ms: 5000
-    initial-delay-ms: 5000
-    consumer:
-      # ?? OrderOutboxPublisherTest?? ??? ??? ??? ???? false?
-      enabled: ${OUTBOX_CONSUMER_ENABLED:false}
-
 spring:
   application:
     name: stockflow
@@ -46,5 +31,48 @@ spring:
         acknowledge-mode: auto          # Consumer ???? ?? ???? Spring? ACK? ??? ??
         default-requeue-rejected: true  # ???? ?? ??? ???? ?? ???? ?????? ??
 
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6380}
+
 server:
-  port: 8080
+  port: 8080  # StockFlow REST API
+
+stockflow:
+  monitoring:
+    enabled: ${STOCKFLOW_MONITORING_ENABLED:false}
+    admin-token: ${STOCKFLOW_MONITORING_TOKEN:}
+  order:
+    consumer:
+      enabled: ${ORDER_CONSUMER_ENABLED:false}
+  outbox:
+    scheduling-enabled: ${OUTBOX_SCHEDULING_ENABLED:false}
+    poll-delay-ms: 5000
+    initial-delay-ms: 5000
+    consumer:
+      # ?? OrderOutboxPublisherTest?? ??? ??? ??? ???? false?
+      enabled: ${OUTBOX_CONSUMER_ENABLED:false}
+  metrics:
+    outbox:
+      # ?? ?? ???? ??? ????? ??? ?? ??? ?? ??? ???? ????? ??
+      enabled: ${STOCKFLOW_OUTBOX_METRICS_ENABLED:false}
+      refresh-ms: 30000
+      initial-delay-ms: 5000
+
+management:
+  server:
+    port: 8081            # Actuator? ?? 8081 ???? ?? ??? ??
+    address: 127.0.0.1    # ??? ??? ??? ???? ? ??? ? ?? ??
+
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics
+
+  endpoint:
+    health:
+      show-details: never
+      show-components: never
+      probes:
+        enabled: true
