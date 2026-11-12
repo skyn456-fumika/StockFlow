@@ -1,11 +1,13 @@
 package com.stockflow.domain.order.outbox;
 
 import jakarta.persistence.LockModeType;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -76,4 +78,40 @@ public interface OrderOutboxRepository
             nativeQuery = true
     )
     Optional<OrderOutbox> findFirstPendingSkipLocked();
+
+    long countByStatus(OutboxStatus status);
+
+    long countByStatusAndNextRetryAtAfter(
+            OutboxStatus status,
+            LocalDateTime now
+    );
+
+    // PENDING 중에서 재시도 이력이 있거나 오래 대기한 이벤트를 생성 시각순으로 조회하는 쿼리
+    @Query("""
+    SELECT o
+    FROM OrderOutbox o
+    WHERE o.status = :status
+      AND (
+          o.retryCount > 0
+          OR o.createdAt < :threshold
+      )
+    ORDER BY o.createdAt ASC, o.id ASC
+    """)
+    List<OrderOutbox> findAttentionRequired(
+            @Param("status") OutboxStatus status,
+            @Param("threshold") LocalDateTime threshold,
+            Pageable pageable
+    );
+
+    // 오래 대기한 이벤트의 개수를 조회
+    long countByStatusAndCreatedAtBefore(
+            OutboxStatus status,
+            LocalDateTime threshold
+    );
+
+    // 반복 실패한 이벤트의 개수를 조회
+    long countByStatusAndRetryCountGreaterThanEqual(
+            OutboxStatus status,
+            int retryCount
+    );
 }

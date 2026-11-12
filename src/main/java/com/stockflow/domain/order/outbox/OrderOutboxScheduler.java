@@ -55,6 +55,11 @@ public class OrderOutboxScheduler {
                     // 발행 트랜잭션 롤백 이후 별도 트랜잭션으로 저장
                     retryService.recordFailure(e.getOutboxId());
 
+                    log.info(
+                            "Outbox 재시도 예약 저장 완료. outboxId={}",
+                            e.getOutboxId()
+                    );
+
                 } catch (Exception retryError) {
                     log.error(
                             "Outbox 재시도 정보 저장 실패. outboxId={}",

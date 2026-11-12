@@ -1,4 +1,7 @@
 stockflow:
+  monitoring:
+    enabled: ${STOCKFLOW_MONITORING_ENABLED:false}
+    admin-token: ${STOCKFLOW_MONITORING_TOKEN:}
   order:
     consumer:
       enabled: ${ORDER_CONSUMER_ENABLED:false}
