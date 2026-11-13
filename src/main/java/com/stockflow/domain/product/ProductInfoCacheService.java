@@ -5,6 +5,7 @@ import com.stockflow.domain.product.dto.ProductInfoResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.HttpStatus;
@@ -27,6 +28,13 @@ public class ProductInfoCacheService {
 
     private static final Duration TTL = Duration.ofMinutes(10);
 
+    // 기존 환경에서는 지금처럼 Redis 캐시를 사용
+    // true	: Redis 조회 → MISS 시 DB 조회 후 캐시 저장
+    // false : Redis를 거치지 않고 DB 조회
+    // 설정 없음 : 기본값 true
+    @Value("${stockflow.cache.product.enabled:true}")
+    private boolean cacheEnabled = true;
+
     private final ProductRepository productRepository;
     private final StringRedisTemplate redisTemplate;
     private final JsonMapper objectMapper;
@@ -42,6 +50,11 @@ public class ProductInfoCacheService {
     }
 
     public ProductInfoResponse getProductInfo(Long productId) {
+
+        // 캐시 OFF: Redis에 접근하지 않고 PostgreSQL 조회
+        if (!cacheEnabled) {
+            return loadFromDb(productId);
+        }
 
         String key = KEY_PREFIX + productId;
 
@@ -60,9 +73,6 @@ public class ProductInfoCacheService {
 
                     try {
                         redisTemplate.delete(key);
-                        // DataAccessException
-                        // Spring 데이터 접근 계층의 예외를 포괄하는 상위 클래스
-                        // Redis 연결 실패나 명령 실행 오류 등 Spring이 변환한 데이터 접근 예외를 처리
                     } catch (DataAccessException deleteError) {
                         log.warn("손상된 상품 캐시 삭제 실패. productId={}",
                                 productId, deleteError);
@@ -76,16 +86,9 @@ public class ProductInfoCacheService {
         }
 
         // 2. PostgreSQL 조회
-        Product product = productRepository.findById(productId)
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND,
-                        "상품을 찾을 수 없습니다."
-                ));
+        ProductInfoResponse response = loadFromDb(productId);
 
-        ProductInfoResponse response =
-                ProductInfoResponse.from(product);
-
-        // 3. 캐시 저장 시도
+        // 3. Redis 캐시 저장
         try {
             String json = objectMapper.writeValueAsString(response);
             redisTemplate.opsForValue().set(key, json, TTL);
@@ -97,4 +100,17 @@ public class ProductInfoCacheService {
 
         return response;
     }
+
+    // PostgreSQL 조회 공통 메서드
+    private ProductInfoResponse loadFromDb(Long productId) {
+
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "상품을 찾을 수 없습니다."
+                ));
+
+        return ProductInfoResponse.from(product);
+    }
+
 }

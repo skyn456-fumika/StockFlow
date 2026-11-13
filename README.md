@@ -1,5 +1,3 @@
-[![StockFlow CI](https://github.com/skyn456-fumika/StockFlow/actions/workflows/ci.yml/badge.svg)](https://github.com/skyn456-fumika/StockFlow/actions/workflows/ci.yml)
-
 # StockFlow
 
 **Spring Boot 기반 주문·재고 관리 및 이벤트 기반 메시징 시스템**
@@ -166,6 +164,17 @@ JUnit 5와 Testcontainers 기반으로 단위 테스트 및 통합 테스트를 
 ```
 
 Windows PowerShell에서는 `./gradlew.bat`을 사용할 수 있습니다.
+
+### 성능 테스트
+
+Grafana k6를 사용하여 상품 조회와 동시 주문 부하 테스트를 수행했습니다.
+
+- 상품 목록 조회: VU 50, 총 1,500건, HTTP 실패율 0%
+- 동시 주문: 100건 중 10건 성공, 90건 재고 부족
+- 최종 재고: 0개로 유지, 초과 판매 0건
+- 동시 주문 P95 응답 시간: 311.88ms
+
+상세 측정 결과와 실험 조건은 [성능 테스트 결과](performance/RESULTS.md)를 참고하세요.
 
 ## 7. CI/CD
 
