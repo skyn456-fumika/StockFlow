@@ -137,6 +137,13 @@ Testcontainers를 활용하여 PostgreSQL, Redis, RabbitMQ를 테스트 환경�
 
 테스트 격리를 유지할 수 있는 일부 클래스에는 공통 컨테이너를 적용하고, 메시지 발행 및 큐 상태에 민감한 테스트는 독립 컨테이너를 유지했습니다.
 
+### 5.6 기술적 문제 해결 사례
+
+동시성 제어, Redis 장애 응답 지연, RabbitMQ 이벤트 복구,
+Consumer 미등록 문제와 통합 테스트 환경 개선 과정을 정리했습니다.
+
+상세 내용: [기술적 문제 해결 사례](docs/TROUBLESHOOTING.md)
+
 ## 6. 테스트
 
 JUnit 5와 Testcontainers 기반으로 단위 테스트 및 통합 테스트를 분리했습니다.
