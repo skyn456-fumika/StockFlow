@@ -1,13 +1,11 @@
 package com.stockflow.domain.inventory;
 
 import com.stockflow.domain.product.ProductService;
+import com.stockflow.support.SharedContainers;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -18,13 +16,8 @@ import static org.assertj.core.api.Assertions.*;
 // 새로운 Repository 조회로 확인하기 위해서
 // @Transactional X
 @SpringBootTest
-@Testcontainers
-class InventoryHistoryServiceTest {
-
-    @Container
-    @ServiceConnection
-    static PostgreSQLContainer postgres =
-            new PostgreSQLContainer("postgres:17-alpine");
+@Tag("integration")
+class InventoryHistoryServiceTest extends SharedContainers {
 
     @Autowired
     ProductService productService;

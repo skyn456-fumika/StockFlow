@@ -2,26 +2,19 @@ package com.stockflow.domain.product;
 
 import com.stockflow.domain.inventory.Inventory;
 import com.stockflow.domain.inventory.InventoryRepository;
+import com.stockflow.support.SharedContainers;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
 
 import java.math.BigDecimal;
 
 import static org.assertj.core.api.Assertions.*;
 
 @SpringBootTest
-@Testcontainers
-class ProductServiceTest {
-
-    @Container
-    @ServiceConnection
-    static PostgreSQLContainer postgres =
-            new PostgreSQLContainer("postgres:17-alpine");
+@Tag("integration")
+class ProductServiceTest extends SharedContainers {
 
     @Autowired
     ProductService productService;

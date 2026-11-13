@@ -29,6 +29,7 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 @SpringBootTest
 @Testcontainers
 // 동시 주문 테스트
+@org.junit.jupiter.api.Tag("integration")
 class OrderConcurrencyTest {
 
     @Container

@@ -25,6 +25,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 @SpringBootTest
 @AutoConfigureMockMvc
 @Testcontainers
+@org.junit.jupiter.api.Tag("integration")
 class InventoryControllerTest {
 
     @Container

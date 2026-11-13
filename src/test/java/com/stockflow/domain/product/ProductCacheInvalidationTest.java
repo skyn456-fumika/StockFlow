@@ -21,6 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
 @Testcontainers
+@org.junit.jupiter.api.Tag("integration")
 class ProductCacheInvalidationTest {
 
     @Container

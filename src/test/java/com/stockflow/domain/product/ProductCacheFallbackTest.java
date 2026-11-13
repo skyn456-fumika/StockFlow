@@ -26,6 +26,7 @@ import static org.mockito.Mockito.*;
 @SpringBootTest
 @Testcontainers
 // Redis 장애 테스트
+@org.junit.jupiter.api.Tag("integration")
 class ProductCacheFallbackTest {
 
     @Container

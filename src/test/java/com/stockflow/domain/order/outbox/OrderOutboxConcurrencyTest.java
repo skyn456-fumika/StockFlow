@@ -30,6 +30,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 })
 @Testcontainers
 // Outbox 동시 발행 방지 테스트
+@org.junit.jupiter.api.Tag("integration")
 class OrderOutboxConcurrencyTest {
 
     @Container

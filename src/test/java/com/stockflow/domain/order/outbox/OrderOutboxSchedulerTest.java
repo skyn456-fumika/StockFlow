@@ -1,6 +1,7 @@
 package com.stockflow.domain.order.outbox;
 
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
@@ -9,6 +10,7 @@ import java.time.Duration;
 import static org.mockito.Mockito.*;
 import static org.assertj.core.api.Assertions.assertThat;
 
+@Tag("unit")
 class OrderOutboxSchedulerTest {
 
     private OrderOutboxBatchPublisher batchPublisher;

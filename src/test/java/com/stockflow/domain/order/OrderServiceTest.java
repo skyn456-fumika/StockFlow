@@ -27,6 +27,7 @@ import static org.assertj.core.api.Assertions.*;
 @Testcontainers
 // 실제 서비스 트랜잭션이 커밋하거나 롤백한 결과를 확인하기 위해서
 // @Transactional X
+@org.junit.jupiter.api.Tag("integration")
 class OrderServiceTest {
 
     @Container

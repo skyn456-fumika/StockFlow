@@ -41,6 +41,7 @@ import static org.mockito.Mockito.*;
 })
 @Testcontainers
 // 실제 재전달 통합 테스트
+@org.junit.jupiter.api.Tag("integration")
 class OrderOutboxRedeliveryTest {
 
     @Container

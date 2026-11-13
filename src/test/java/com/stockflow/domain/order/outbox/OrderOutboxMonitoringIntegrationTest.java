@@ -4,6 +4,8 @@ import com.stockflow.domain.order.OrderService;
 import com.stockflow.domain.order.dto.OrderCreateItem;
 import com.stockflow.domain.product.ProductService;
 
+import com.stockflow.support.SharedContainers;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -22,33 +24,17 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+@Tag("integration")
 @SpringBootTest(properties = {
         "stockflow.outbox.scheduling-enabled=false",
         "stockflow.outbox.consumer.enabled=false",
         "stockflow.order.consumer.enabled=false"
 })
-@Testcontainers
 // PostgreSQL 기반 모니터링 통합 테스트
 // 주문 생성, 재시도 예약, 발행 완료 처리가
 // 실제 DB에 커밋된 상태에서 집계되는지 확인하기 위해서
 // @Transactional X
-class OrderOutboxMonitoringIntegrationTest {
-
-    @Container
-    @ServiceConnection
-    static PostgreSQLContainer postgres =
-            new PostgreSQLContainer("postgres:17-alpine");
-
-    @Container
-    @ServiceConnection(name = "redis")
-    static GenericContainer<?> redis =
-            new GenericContainer<>("redis:7-alpine")
-                    .withExposedPorts(6379);
-
-    @Container
-    @ServiceConnection
-    static RabbitMQContainer rabbitmq =
-            new RabbitMQContainer("rabbitmq:4.3-management-alpine");
+class OrderOutboxMonitoringIntegrationTest extends SharedContainers {
 
     @Autowired
     ProductService productService;

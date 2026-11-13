@@ -4,16 +4,11 @@ import com.stockflow.domain.order.OrderService;
 import com.stockflow.domain.order.dto.OrderCreateItem;
 import com.stockflow.domain.product.ProductService;
 
+import com.stockflow.support.SharedContainers;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
-
-import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
-import org.testcontainers.rabbitmq.RabbitMQContainer;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -21,28 +16,12 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.*;
 
+@Tag("integration")
 @SpringBootTest(properties = {
         "stockflow.outbox.scheduling-enabled=false",
         "stockflow.outbox.consumer.enabled=false"
 })
-@Testcontainers
-class OrderOutboxRetryServiceTest {
-
-    @Container
-    @ServiceConnection
-    static PostgreSQLContainer postgres =
-            new PostgreSQLContainer("postgres:17-alpine");
-
-    @Container
-    @ServiceConnection(name = "redis")
-    static GenericContainer<?> redis =
-            new GenericContainer<>("redis:7-alpine")
-                    .withExposedPorts(6379);
-
-    @Container
-    @ServiceConnection
-    static RabbitMQContainer rabbitmq =
-            new RabbitMQContainer("rabbitmq:4.3-management-alpine");
+class OrderOutboxRetryServiceTest extends SharedContainers {
 
     @Autowired
     ProductService productService;

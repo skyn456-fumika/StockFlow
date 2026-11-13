@@ -29,6 +29,7 @@ import static org.mockito.Mockito.verify;
 })
 @Testcontainers
 // RabbitMq 통합 테스트
+@org.junit.jupiter.api.Tag("integration")
 class RabbitMqConnectionTest {
 
     @Container

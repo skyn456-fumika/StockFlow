@@ -37,6 +37,7 @@ import static org.mockito.Mockito.*;
 })
 @Testcontainers
 // Consumer 재시도 통합 테스트
+@org.junit.jupiter.api.Tag("integration")
 class OrderOutboxConsumerRetryTest {
 
     @Container

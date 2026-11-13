@@ -1,6 +1,7 @@
 package com.stockflow.domain.order.outbox;
 
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import org.springframework.http.MediaType;
@@ -15,6 +16,7 @@ import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
+@Tag("unit")
 class OrderOutboxMonitoringControllerTest {
 
     private MockMvc mockMvc;

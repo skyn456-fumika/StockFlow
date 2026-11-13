@@ -27,6 +27,7 @@ import static org.assertj.core.api.Assertions.assertThat;
         "stockflow.outbox.consumer.enabled=false"
 })
 @Testcontainers
+@org.junit.jupiter.api.Tag("integration")
 class OrderOutboxSkipLockedTest {
 
     @Container

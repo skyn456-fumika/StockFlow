@@ -27,6 +27,7 @@ import static org.assertj.core.api.Assertions.*;
         "stockflow.outbox.scheduling-enabled=false"
 })
 @Testcontainers
+@org.junit.jupiter.api.Tag("integration")
 class RabbitRoutingVerifierTest {
 
     @Container

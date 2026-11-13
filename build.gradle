@@ -39,6 +39,14 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
 }
 
+tasks.withType(Test).configureEach {
+    testLogging {
+        events 'passed', 'skipped', 'failed'
+        exceptionFormat = 'full'
+        showStandardStreams = false
+    }
+}
+
 tasks.named('test') {
     useJUnitPlatform()
 
@@ -46,4 +54,34 @@ tasks.named('test') {
         events "passed", "skipped", "failed"
         exceptionFormat "full"
     }
+}
+
+// @Tag("unit") 테스트
+tasks.register('unitTest', Test) {
+    description = 'Runs unit tests only.'
+    group = 'verification'
+
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+
+    useJUnitPlatform {
+        includeTags 'unit'
+    }
+
+    shouldRunAfter tasks.named('test')
+}
+
+// @Tag("integration") 테스트
+tasks.register('integrationTest', Test) {
+    description = 'Runs integration tests only.'
+    group = 'verification'
+
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+
+    useJUnitPlatform {
+        includeTags 'integration'
+    }
+
+    shouldRunAfter tasks.named('test')
 }

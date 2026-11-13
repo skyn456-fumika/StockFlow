@@ -9,6 +9,7 @@ import com.stockflow.domain.product.ProductService;
 import io.micrometer.core.instrument.MeterRegistry;
 
 import io.micrometer.core.instrument.Timer;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
@@ -39,6 +40,7 @@ import static org.mockito.Mockito.*;
 })
 @Testcontainers
 // RabbitMQ 기반 Counter 통합 테스트
+@Tag("integration")
 class OrderOutboxPublishMetricsIntegrationTest {
 
     @Container

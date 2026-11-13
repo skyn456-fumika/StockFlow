@@ -2,14 +2,15 @@ package com.stockflow.domain.order;
 
 import com.stockflow.domain.product.Product;
 import com.stockflow.domain.product.ProductRepository;
+import com.stockflow.support.SharedContainers;
 import jakarta.persistence.EntityManager;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 import java.math.BigDecimal;
@@ -18,15 +19,10 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
-@Testcontainers
 // 각 테스트가 종료되면 데이터가 롤백되므로 테스트 간 데이터 간섭을 줄임
 @Transactional
-class OrderRepositoryTest {
-
-    @Container
-    @ServiceConnection
-    static PostgreSQLContainer postgres =
-            new PostgreSQLContainer("postgres:17-alpine");
+@Tag("integration")
+class OrderRepositoryTest extends SharedContainers {
 
     @Autowired
     ProductRepository productRepository;

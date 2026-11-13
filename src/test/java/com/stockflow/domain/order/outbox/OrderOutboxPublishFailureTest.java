@@ -30,6 +30,7 @@ import static org.mockito.Mockito.*;
 
 @SpringBootTest
 @Testcontainers
+@org.junit.jupiter.api.Tag("integration")
 class OrderOutboxPublishFailureTest {
 
     @Container

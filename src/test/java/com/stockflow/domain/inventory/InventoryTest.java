@@ -7,6 +7,7 @@ import java.math.BigDecimal;
 
 import static org.assertj.core.api.Assertions.*;
 
+@org.junit.jupiter.api.Tag("unit")
 class InventoryTest {
 
     private Inventory createInventory(int quantity) {

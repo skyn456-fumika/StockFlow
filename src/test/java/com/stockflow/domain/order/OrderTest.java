@@ -8,6 +8,7 @@ import java.math.BigDecimal;
 import static org.assertj.core.api.Assertions.*;
 
 // 주문 금액 계산 테스트
+@org.junit.jupiter.api.Tag("unit")
 class OrderTest {
 
     private Product createProduct(String name, String price) {

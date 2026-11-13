@@ -7,6 +7,7 @@ import java.time.LocalDateTime;
 import static org.assertj.core.api.Assertions.*;
 
 // Outbox 재시도 정보 테스트
+@org.junit.jupiter.api.Tag("unit")
 class OrderOutboxRetryTest {
 
     private OrderOutbox createOutbox() {

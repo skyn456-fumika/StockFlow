@@ -35,6 +35,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 @Testcontainers
 // 실제 서비스 트랜잭션이 커밋하거나 롤백한 결과를 검증해야 하므로
 // @Transactional X
+@org.junit.jupiter.api.Tag("integration")
 class OrderControllerTest {
 
     @Container

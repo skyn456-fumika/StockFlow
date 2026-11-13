@@ -42,6 +42,7 @@ import static org.mockito.Mockito.verify;
         "stockflow.outbox.consumer.enabled=true"
 })
 @Testcontainers
+@org.junit.jupiter.api.Tag("integration")
 class OrderInboxIntegrationTest {
 
     @Container

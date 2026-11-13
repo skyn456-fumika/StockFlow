@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.*;
 
+@org.junit.jupiter.api.Tag("unit")
 class OrderOutboxTest {
 
     @Test

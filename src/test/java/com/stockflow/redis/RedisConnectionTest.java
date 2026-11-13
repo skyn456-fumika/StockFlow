@@ -1,5 +1,7 @@
 package com.stockflow.redis;
 
+import com.stockflow.support.SharedContainers;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,23 +21,9 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
-@Testcontainers
 // Redis 통합 테스트
-class RedisConnectionTest {
-
-    // 별도의 PostgreSQL과 Redis 컨테이너를 사용
-    // 테스트 실행 시 로컬 Redis의 6380 포트에 직접 의존하지 않음
-    @Container
-    @ServiceConnection
-    static PostgreSQLContainer postgres =
-            new PostgreSQLContainer("postgres:17-alpine");
-
-    @Container
-    // Spring Boot가 Testcontainers의 Redis 연결 정보를 자동으로 사용하도록 지정하는 부분
-    @ServiceConnection(name = "redis")
-    static GenericContainer<?> redis =
-            new GenericContainer<>("redis:7-alpine")
-                    .withExposedPorts(6379);
+@Tag("integration")
+class RedisConnectionTest extends SharedContainers {
 
     // Redis에 문자열 기반 데이터를 저장하고 조회하는 Spring Data Redis의 클래스
     @Autowired

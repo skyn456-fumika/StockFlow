@@ -4,6 +4,8 @@ import com.stockflow.domain.order.OrderService;
 import com.stockflow.domain.order.dto.OrderCreateItem;
 import com.stockflow.domain.product.ProductService;
 
+import com.stockflow.support.SharedContainers;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -27,25 +29,9 @@ import static org.assertj.core.api.Assertions.assertThat;
         "stockflow.outbox.consumer.enabled=false",
         "stockflow.order.consumer.enabled=false"
 })
-@Testcontainers
 // PostgreSQL 장애 감지 통합 테스트
-class OrderOutboxAlertIntegrationTest {
-
-    @Container
-    @ServiceConnection
-    static PostgreSQLContainer postgres =
-            new PostgreSQLContainer("postgres:17-alpine");
-
-    @Container
-    @ServiceConnection(name = "redis")
-    static GenericContainer<?> redis =
-            new GenericContainer<>("redis:7-alpine")
-                    .withExposedPorts(6379);
-
-    @Container
-    @ServiceConnection
-    static RabbitMQContainer rabbitmq =
-            new RabbitMQContainer("rabbitmq:4.3-management-alpine");
+@Tag("integration")
+class OrderOutboxAlertIntegrationTest extends SharedContainers {
 
     @Autowired
     ProductService productService;

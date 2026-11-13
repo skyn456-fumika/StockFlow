@@ -1,14 +1,12 @@
 package com.stockflow.domain.inventory;
 
 import com.stockflow.domain.product.ProductService;
+import com.stockflow.support.SharedContainers;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
 
 import java.math.BigDecimal;
 
@@ -16,13 +14,8 @@ import static org.assertj.core.api.Assertions.*;
 
 // 재고 이력 저장 실패 시 롤백 테스트
 @SpringBootTest
-@Testcontainers
-class InventoryHistoryRollbackTest {
-
-    @Container
-    @ServiceConnection
-    static PostgreSQLContainer postgres =
-            new PostgreSQLContainer("postgres:17-alpine");
+@Tag("integration")
+class InventoryHistoryRollbackTest extends SharedContainers {
 
     @Autowired
     ProductService productService;

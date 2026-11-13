@@ -6,6 +6,7 @@ import com.stockflow.domain.order.dto.OrderCreateItem;
 import com.stockflow.domain.product.ProductService;
 
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
@@ -27,6 +28,7 @@ import java.util.concurrent.*;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+@Tag("integration")
 @SpringBootTest(properties = {
         "stockflow.outbox.scheduling-enabled=false",
         "stockflow.outbox.consumer.enabled=false"
