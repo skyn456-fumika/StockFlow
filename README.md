@@ -179,14 +179,96 @@ GitHub Actions를 사용하여 `main` 브랜치 Push 및 Pull Request 시 다음
 
 현재 자동화 범위는 **CI(빌드 및 테스트 검증)**이며, 운영 환경 자동 배포는 포함하지 않습니다.
 
-## 8. 향후 개선 계획
+## 8. Docker 실행 방법
 
-- 애플리케이션 Docker 이미지 구성
-- Docker Compose 기반 실행 환경 정리
-- 운영 및 개발 환경설정 분리
-- Health Check 및 배포 안정성 강화
-- 장애 상황별 추가 테스트
+StockFlow는 Docker Compose를 사용하여 Spring Boot 애플리케이션과 PostgreSQL, Redis, RabbitMQ를 함께 실행할 수 있습니다.
 
-## 9. Repository
+### 사전 준비
+
+- Docker Desktop 또는 Docker Engine
+- Docker Compose
+
+### 환경변수 설정
+
+프로젝트 루트에 `.env` 파일을 생성하고 기존 Compose 환경에 맞는 인증정보를 설정합니다.
+
+```dotenv
+POSTGRES_USER=stockflow
+POSTGRES_PASSWORD=<DB_PASSWORD>
+
+RABBITMQ_USER=<RABBITMQ_USERNAME>
+RABBITMQ_PASSWORD=<RABBITMQ_PASSWORD>
+```
+
+`.env` 파일은 Git에 포함되지 않습니다.
+
+### Docker 이미지 빌드
+
+```bash
+docker build -t stockflow-app:local .
+```
+
+### 전체 서비스 실행
+
+```bash
+docker compose -f compose.yml up -d
+```
+
+### 컨테이너 상태 확인
+
+```bash
+docker compose -f compose.yml ps
+```
+
+Spring Boot, PostgreSQL, Redis, RabbitMQ 컨테이너의 상태를 확인합니다.
+
+### API 동작 확인
+
+```bash
+curl http://localhost:8080/api/products
+```
+
+### Spring Boot Health Check
+
+Actuator는 관리 포트 `8081`에서 실행되며, Docker 컨테이너 내부에서 확인할 수 있습니다.
+
+```bash
+docker compose -f compose.yml exec app \
+  wget -qO- http://127.0.0.1:8081/actuator/health
+```
+
+정상적인 경우 다음과 유사한 응답을 반환합니다.
+
+```json
+{
+  "groups": ["liveness", "readiness"],
+  "status": "UP"
+}
+```
+
+### 로그 확인
+
+```bash
+docker compose -f compose.yml logs -f app
+```
+
+### 서비스 종료
+
+```bash
+docker compose -f compose.yml down
+```
+
+데이터베이스 볼륨을 유지하기 위해 일반적인 종료 시에는 `down -v`를 사용하지 않습니다.
+
+---
+
+## 9. 향후 개선 계획
+
+- 배포 환경의 비밀정보 관리 강화
+- CI/CD 자동 배포 파이프라인 구축
+- 운영 모니터링 및 알림 체계 확장
+- 테스트 격리 및 실행 시간 추가 최적화
+
+## 10. Repository
 
 GitHub: https://github.com/skyn456-fumika/StockFlow
