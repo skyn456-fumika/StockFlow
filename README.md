@@ -192,6 +192,12 @@ Grafana k6를 사용하여 상품 조회와 동시 주문 부하 테스트를 �
 
 상세 결과: [장애 복구 검증](docs/FAILURE_RECOVERY.md)
 
+### API 사용 예시
+
+상품 등록, 재고 입출고, 주문 생성 및 취소에 대한 요청·응답 예시를 제공합니다.
+
+상세 내용: [API 사용 가이드](docs/API_EXAMPLES.md)
+
 ## 7. CI/CD
 
 GitHub Actions를 사용하여 `main` 브랜치 Push 및 Pull Request 시 다음 작업을 자동으로 수행합니다.
