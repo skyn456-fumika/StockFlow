@@ -176,6 +176,15 @@ Grafana k6를 사용하여 상품 조회와 동시 주문 부하 테스트를 �
 
 상세 측정 결과와 실험 조건은 [성능 테스트 결과](performance/RESULTS.md)를 참고하세요.
 
+### 장애 복구 검증
+
+- Redis 장애 시 상품 조회 성공 및 응답 지연 개선
+- RabbitMQ 중지 중 주문 생성과 Outbox 이벤트 보존 확인
+- RabbitMQ 복구 후 이벤트 발행 및 Consumer 처리 완료
+- Consumer 활성화 환경변수 누락 문제 발견 및 해결
+
+상세 결과: [장애 복구 검증](docs/FAILURE_RECOVERY.md)
+
 ## 7. CI/CD
 
 GitHub Actions를 사용하여 `main` 브랜치 Push 및 Pull Request 시 다음 작업을 자동으로 수행합니다.

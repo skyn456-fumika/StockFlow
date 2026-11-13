@@ -2,10 +2,12 @@ package com.stockflow.config;
 
 import org.springframework.amqp.core.*;
 
+import org.springframework.amqp.rabbit.annotation.EnableRabbit;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
+@EnableRabbit
 // RabbitMQ 설정 클래스
 public class RabbitMqConfig {
 

@@ -35,6 +35,8 @@ spring:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6380}
+      connect-timeout: 1s               # Redis 연결 대기 제한
+      timeout: 2s                       # Redis 명령 응답 대기 제한
 
 server:
   port: 8080  # StockFlow REST API
